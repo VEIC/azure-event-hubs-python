@@ -14,6 +14,9 @@ from eventprocessorhost.checkpoint import Checkpoint
 from eventprocessorhost.abstract_lease_manager import AbstractLeaseManager
 from eventprocessorhost.abstract_checkpoint_manager import AbstractCheckpointManager
 
+logger = logging.getLogger(__name__)
+
+
 class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeaseManager):
     """
     Manages checkpoints and lease with azure storage blobs. In this implementation,
@@ -125,7 +128,7 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
             self.storage_client.create_container(self.lease_container_name)
 
         except Exception as err:
-            logging.error(repr(err))
+            logger.error(repr(err))
             raise err
 
         return True
@@ -155,12 +158,12 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
                     return self.storage_client.get_blob_properties(self.lease_container_name,
                                                                    partition_id).properties.lease.state
                 except Exception as err:
-                    logging.error("Failed to get lease state %s %s", err, partition_id)
+                    logger.error("Failed to get lease state %s %s", err, partition_id)
 
             lease.state = state
             return lease
         except Exception as err:
-            logging.error("Failed to get lease %s %s", err, partition_id)
+            logger.error("Failed to get lease %s %s", err, partition_id)
 
     async def get_all_leases(self):
         """
@@ -185,7 +188,7 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
             return_lease = AzureBlobLease()
             return_lease.partition_id = partition_id
             json_lease = json.dumps(return_lease.serializable())
-            logging.info("Creating Lease %s %s %s", self.lease_container_name,
+            logger.info("Creating Lease %s %s %s", self.lease_container_name,
                          partition_id, json_lease)
             self.storage_client.create_blob_from_text(self.lease_container_name,
                                                       partition_id, json_lease)
@@ -193,7 +196,7 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
             try:
                 return_lease = await self.get_lease_async(partition_id)
             except Exception as err:
-                logging.error("Failed to create lease %s ", repr(err))
+                logger.error("Failed to create lease %s ", repr(err))
                 raise err
         return return_lease
 
@@ -228,13 +231,13 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
                     # than it should, rebalancing will take care of that quickly enough.
                     retval = False
                 else:
-                    logging.info("ChangingLease %s %s", self.host.guid, lease.partition_id)
+                    logger.info("ChangingLease %s %s", self.host.guid, lease.partition_id)
                     self.storage_client.change_blob_lease(self.lease_container_name,
                                                           partition_id, lease.token,
                                                           new_lease_id)
                     lease.token = new_lease_id
             else:
-                logging.info("AcquiringLease %s %s", self.host.guid, lease.partition_id)
+                logger.info("AcquiringLease %s %s", self.host.guid, lease.partition_id)
                 lease.token = self.storage_client.acquire_blob_lease(self.lease_container_name,
                                                                      partition_id,
                                                                      self.lease_duration,
@@ -244,7 +247,7 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
             #check if this solves the issue
             await self.update_lease_async(lease)
         except Exception as err:
-            logging.error("Failed to acquire lease %s %s %s", repr(err),
+            logger.error("Failed to acquire lease %s %s %s", repr(err),
                           partition_id, lease.token)
             return False
         
@@ -265,9 +268,9 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
                                                  timeout=self.lease_duration)
         except Exception as err:
             if "LeaseIdMismatchWithLeaseOperation" in str(err):
-                logging.info("LeaseLost")
+                logger.info("LeaseLost")
             else:
-                logging.error("Failed to renew lease on partition %s with token %s %s",
+                logger.error("Failed to renew lease on partition %s with token %s %s",
                               lease.partition_id, lease.token, repr(err))
             return False
         return True
@@ -279,7 +282,7 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
         (Returns) true if the lease was released successfully, false if not
         """
         try:
-            logging.info("Releasing lease %s %s", self.host.guid, lease.partition_id)
+            logger.info("Releasing lease %s %s", self.host.guid, lease.partition_id)
             lease_id = lease.token
             released_copy = AzureBlobLease()
             released_copy.with_lease(lease)
@@ -294,7 +297,7 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
                                                    lease.partition_id,
                                                    lease_id)
         except Exception as err:
-            logging.error("Failed to release lease %s %s %s",
+            logger.error("Failed to release lease %s %s %s",
                           repr(err), lease.partition_id, lease_id)
             return False
         return True
@@ -314,7 +317,7 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
         if not lease.token:
             return False
 
-        logging.debug("Updating lease %s %s", self.host.guid, lease.partition_id)
+        logger.debug("Updating lease %s %s", self.host.guid, lease.partition_id)
 
         # First, renew the lease to make sure the update will go through.
         if await self.renew_lease_async(lease):
@@ -325,7 +328,7 @@ class AzureStorageCheckpointLeaseManager(AbstractCheckpointManager, AbstractLeas
                                                           lease_id=lease.token)
 
             except Exception as err:
-                logging.error("Failed to update lease %s %s %s", self.host.guid,
+                logger.error("Failed to update lease %s %s %s", self.host.guid,
                               lease.partition_id, repr(err))
                 raise err
         else:

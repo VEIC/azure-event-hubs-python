@@ -9,6 +9,9 @@ from eventhubs import EventHubClient, Offset
 from eventhubs.async import AsyncReceiver
 from eventprocessorhost.partition_pump import PartitionPump
 
+logger = logging.getLogger(__name__)
+
+
 class EventHubPartitionPump(PartitionPump):
     """
     Pulls and messages from lease partition from eventhub and sends them to processor
@@ -30,7 +33,7 @@ class EventHubPartitionPump(PartitionPump):
                 await self.open_clients_async()
                 _opened_ok = True
             except Exception as err:
-                logging.warning("%s,%s PartitionPumpWarning: Failure creating client or receiver,\
+                logger.warning("%s,%s PartitionPumpWarning: Failure creating client or receiver,\
                                 retrying: %s", self.host.guid, self.partition_context.partition_id,
                                 repr(err))
                 last_exception = err
@@ -109,7 +112,7 @@ class PartitionReceiver:
                     await self.process_events_async(msgs)
             except asyncio.TimeoutError as err:
                 if self.eh_partition_pump.partition_receive_handler:
-                    logging.info("No events received, queue size %d, delivered %d",
+                    logger.info("No events received, queue size %d, delivered %d",
                                 self.eh_partition_pump.partition_receive_handler.messages.qsize(),
                                 self.eh_partition_pump.partition_receive_handler.delivered)
                 if self.eh_partition_pump.host.eph_options.release_pump_on_timeout:

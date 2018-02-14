@@ -3,10 +3,13 @@
 # Licensed under the MIT License. See License.txt in the project root for license information.
 # ---------------------
 
-from abc import  abstractmethod
+from abc import abstractmethod
 import logging
 import asyncio
 from eventprocessorhost.partition_context import PartitionContext
+
+logger = logging.getLogger(__name__)
+
 
 class PartitionPump():
     """
@@ -32,7 +35,7 @@ class PartitionPump():
         Updates pump status and logs update to console
         """
         self.pump_status = status
-        logging.info("%s partition %s", status, self.lease.partition_id)
+        logger.info("%s partition %s", status, self.lease.partition_id)
 
     def set_lease(self, new_lease):
         """
@@ -86,23 +89,23 @@ class PartitionPump():
         try:
             await self.on_closing_async(reason)
             if self.processor:
-                logging.info("PartitionPumpInvokeProcessorCloseStart %s %s %s", self.host.guid,
+                logger.info("PartitionPumpInvokeProcessorCloseStart %s %s %s", self.host.guid,
                              self.partition_context.partition_id, reason)
                 await self.processor.close_async(self.partition_context, reason)
-                logging.info("PartitionPumpInvokeProcessorCloseStart %s %s", self.host.guid,
+                logger.info("PartitionPumpInvokeProcessorCloseStart %s %s", self.host.guid,
                              self.partition_context.partition_id)
         except Exception as err:
             await self.process_error_async(err)
-            logging.error("%s %s %s", self.host.guid,
+            logger.error("%s %s %s", self.host.guid,
                           self.partition_context.partition_id, repr(err))
             raise err
 
         if reason == "LeaseLost":
             try:
-                logging.info("Lease Lost releasing ownership")
+                logger.info("Lease Lost releasing ownership")
                 await self.host.storage_manager.release_lease_async(self.partition_context.lease)
             except Exception as err:
-                logging.error("%s %s %s", self.host.guid,
+                logger.error("%s %s %s", self.host.guid,
                               self.partition_context.partition_id, repr(err))
                 raise err
 
